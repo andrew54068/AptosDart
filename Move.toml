@@ -1,0 +1,17 @@
+[package]
+name = "FlickArena"
+version = "1.0.0"
+authors = []
+
+[addresses]
+std = "0x1"
+flick_arena_bet = "149a7bf28cd1d8bdb1bc3328ebbe330a10f63035f4e1b79aad1cdc8baa64ab69"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "mainnet"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-dependencies]

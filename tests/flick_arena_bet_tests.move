@@ -164,6 +164,93 @@ module flick_arena_bet::game_tests {
     }
 
     #[test(host = @0x1, player1 = @0x2, player2 = @0x3, aptos_framework = @aptos_framework)]
+    public entry fun test_game_switch_player(
+        host: signer,
+        player1: signer,
+        player2: signer,
+        aptos_framework: signer
+    ) {
+        // Setup
+        let (
+            host_addr,
+            player1_addr,
+            player2_addr,
+            burn_cap,
+            mint_cap
+        ) = setup_accounts_and_coin(
+            &host,
+            &player1,
+            &player2,
+            &aptos_framework
+        );
+
+        // Initialize game
+        let target_score = 101;
+        game::initialize(&host, target_score, 1);
+
+        // Register and bet
+        let bet_amount = 100000000;
+        game::register_and_bet(&player1, host_addr, bet_amount);
+        game::register_and_bet(&player2, host_addr, bet_amount);
+
+        // Simulate a draw scenario (both players reach zero in the same round)
+        game::flick_dart(&host, player1_addr, 51);
+
+        // asset current player is player1
+        let current_player = game::get_current_player(host_addr);
+        assert!(current_player == player1_addr, 0);
+
+        // Switch player
+        game::switch_player(&host);
+
+        // asset current player is player2
+        let current_player = game::get_current_player(host_addr);
+        assert!(current_player == player2_addr, 1);
+
+        game::flick_dart(&host, player2_addr, 51);
+        game::flick_dart(&host, player2_addr, 49);
+        game::flick_dart(&host, player2_addr, 1);
+
+        // Verify final scores
+        let (_, player1_score, _) = game::get_player_info(host_addr, 0);
+        let (_, player2_score, _) = game::get_player_info(host_addr, 1);
+        assert!(
+            player1_score == 50 && player2_score == 0,
+            2
+        );
+
+        // Verify game state
+        let (_, game_ended, _, prize_pool) = game::get_game_state(host_addr);
+        assert!(game_ended, 3);
+
+        debug::print(&prize_pool);
+
+        // Verify balances (assuming bets are returned in case of a draw)
+        let initial_balance = 1000000000;
+        assert!(
+            coin::balance<AptosCoin>(player1_addr) == initial_balance - bet_amount,
+            4
+        );
+        let host_fee = 2 * bet_amount / 100 * 1;
+
+        assert!(
+            coin::balance<AptosCoin>(player2_addr) == initial_balance - bet_amount + (
+                2 * bet_amount - host_fee
+            ),
+            5
+        );
+
+        assert!(
+            coin::balance<AptosCoin>(host_addr) == initial_balance + host_fee,
+            6
+        );
+
+        // Clean up
+        coin::destroy_burn_cap(burn_cap);
+        coin::destroy_mint_cap(mint_cap);
+    }
+
+    #[test(host = @0x1, player1 = @0x2, player2 = @0x3, aptos_framework = @aptos_framework)]
     #[expected_failure(abort_code = 9)]
     public entry fun test_game_order(
         host: signer,
@@ -306,9 +393,27 @@ module flick_arena_bet::game_tests {
     }
 
     #[test(host = @0x1, player1 = @0x2, player2 = @0x3, player3 = @0x4, aptos_framework = @aptos_framework)]
-    #[expected_failure(abort_code = 2)] // Assuming error code 6 is for game already started
-    public entry fun test_max_players_reached(host: signer, player1: signer, player2: signer, player3: signer, aptos_framework: signer) {
-        let (host_addr, player1_addr, player2_addr, burn_cap, mint_cap) = setup_accounts_and_coin(&host, &player1, &player2, &aptos_framework);
+    #[expected_failure(abort_code = 2)]
+    // Assuming error code 6 is for game already started
+    public entry fun test_max_players_reached(
+        host: signer,
+        player1: signer,
+        player2: signer,
+        player3: signer,
+        aptos_framework: signer
+    ) {
+        let (
+            host_addr,
+            player1_addr,
+            player2_addr,
+            burn_cap,
+            mint_cap
+        ) = setup_accounts_and_coin(
+            &host,
+            &player1,
+            &player2,
+            &aptos_framework
+        );
         let player3_addr = signer::address_of(&player3);
         account::create_account_for_test(player3_addr);
         coin::register<AptosCoin>(&player3);
@@ -330,7 +435,8 @@ module flick_arena_bet::game_tests {
     }
 
     #[test(host = @0x1, player1 = @0x2, player2 = @0x3, aptos_framework = @aptos_framework)]
-    #[expected_failure(abort_code = 12)] // EGAME_NOT_ENDED
+    #[expected_failure(abort_code = 12)]
+    // EGAME_NOT_ENDED
     public entry fun test_reset_game_failed(
         host: signer,
         player1: signer,
@@ -426,7 +532,12 @@ module flick_arena_bet::game_tests {
         game::flick_dart(&host, player1_addr, 1);
 
         // Verify game state before reset
-        let (is_started, is_ended, host_address, prize_pool) = game::get_game_state(host_addr);
+        let (
+            is_started,
+            is_ended,
+            host_address,
+            prize_pool
+        ) = game::get_game_state(host_addr);
         assert!(is_started, 1);
         assert!(is_ended, 2);
         assert!(host_address == host_addr, 3);
@@ -436,7 +547,12 @@ module flick_arena_bet::game_tests {
         game::initialize(&host, target_score + 1, max_round + 1);
 
         // Verify game state after reset
-        let (is_started, is_ended, host_address, prize_pool) = game::get_game_state(host_addr);
+        let (
+            is_started,
+            is_ended,
+            host_address,
+            prize_pool
+        ) = game::get_game_state(host_addr);
         assert!(!is_started, 5);
         assert!(!is_ended, 6);
         assert!(host_address == host_addr, 7);
@@ -447,7 +563,12 @@ module flick_arena_bet::game_tests {
         game::register_and_bet(&player2, host_addr, bet_amount);
 
         // Verify game state after reset
-        let (is_started, is_ended, host_address, prize_pool) = game::get_game_state(host_addr);
+        let (
+            is_started,
+            is_ended,
+            host_address,
+            prize_pool
+        ) = game::get_game_state(host_addr);
         assert!(is_started, 9);
         assert!(!is_ended, 10);
         assert!(host_address == host_addr, 11);
@@ -465,8 +586,14 @@ module flick_arena_bet::game_tests {
         assert!(bet == bet_amount, 18);
 
         // Verify game config is maintained
-        let (stored_target_score, stored_max_round) = game::get_game_config(host_addr);
-        assert!(stored_target_score == target_score + 1, 19);
+        let (
+            stored_target_score,
+            stored_max_round
+        ) = game::get_game_config(host_addr);
+        assert!(
+            stored_target_score == target_score + 1,
+            19
+        );
         assert!(stored_max_round == max_round + 1, 20);
 
         game::flick_dart(&host, player1_addr, 20);
@@ -475,7 +602,6 @@ module flick_arena_bet::game_tests {
         assert!(player_address == player1_addr, 21);
         assert!(score == target_score + 1 - 20, 22);
         assert!(bet == bet_amount, 23);
-
 
         // Clean up
         coin::destroy_burn_cap(burn_cap);

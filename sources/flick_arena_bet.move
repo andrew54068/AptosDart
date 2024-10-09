@@ -222,11 +222,20 @@ module flick_arena_bet::game {
         };
 
         if (vector::length(current_round_scores) == MAX_DARTS_PER_TURN) {
-            switch_player(game_state, game_config, game_events, host);
+            internal_switch_player(game_state, game_config, game_events, host);
         };
     }
 
-    fun switch_player(game_state: &mut GameState, game_config: &GameConfig, game_events: &mut GameEvents, host: &signer) {
+    public entry fun switch_player(host: &signer) acquires GameState, GameConfig, GameEvents {
+        let host_addr = signer::address_of(host);
+        let game_state = borrow_global_mut<GameState>(host_addr);
+        let game_config = borrow_global<GameConfig>(host_addr);
+        let game_events = borrow_global_mut<GameEvents>(host_addr);
+
+        internal_switch_player(game_state, game_config, game_events, host);
+    }
+
+    fun internal_switch_player(game_state: &mut GameState, game_config: &GameConfig, game_events: &mut GameEvents, host: &signer) {
         game_state.current_player_index = 1 - game_state.current_player_index;
         if (game_state.current_player_index == 0) {
             game_state.current_round = game_state.current_round + 1;
